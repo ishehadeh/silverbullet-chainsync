@@ -1,0 +1,6 @@
+name: chainsync
+functions:
+  onPageModified:
+    path: "./chainsync.ts:onPageModified"
+    events:
+      - editor:pageModified
