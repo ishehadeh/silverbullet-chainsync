@@ -28,7 +28,7 @@ export function findNodeTypeInRange(tree: ParseTree, type: string, range: Range)
     return null
 }
 export async function onPageModified(ev: PageModifiedEvent): Promise<void> {
-    const page = await editor.getCurrentPage();
+    const pageName = await editor.getCurrentPage();
     const doc = await editor.getText();
     const pageTree = await markdown.parseMarkdown(doc);
     for (const change of ev.changes) {
@@ -45,17 +45,19 @@ export async function onPageModified(ev: PageModifiedEvent): Promise<void> {
                         const wikiLinkPage = findNodeOfType(node, "WikiLinkPage")!;
                         console.log("found chain link page = ", wikiLinkPage);
                         try {
-                            const [targetPage, targetLoc] = resolvePath(page, wikiLinkPage.children![0].text!).split("@");
-                            const targetDoc = await space.readPage(targetPage);
-                            if (targetDoc == page) {
+                            const [targetPageName, targetLoc] = resolvePath(pageName, wikiLinkPage.children![0].text!).split("@");
+                            console.log(`chain link to "${targetPageName}@${targetLoc}" from "${pageName}"`);
+                            if (targetPageName == pageName) {
+                                console.log("same page, skipping")
                                 return true;
                             }
+                            const targetDoc = await space.readPage(targetPageName);
                             const targetParseTree = await markdown.parseMarkdown(targetDoc);
                             const targetNode = nodeAtPos(targetParseTree, Number.parseInt(targetLoc, 10));
                             if (targetNode) {
                                 const srcTaskText = doc.slice(taskAtPos.from, taskAtPos.to);
                                 const newTargetDoc = targetDoc.slice(0, targetNode.from) + srcTaskText + targetDoc.slice(taskAtPos.from);
-                                await space.writePage(targetDoc, newTargetDoc);
+                                await space.writePage(targetPageName, newTargetDoc);
                             }
                         } catch(e) {
                             console.log(e);
