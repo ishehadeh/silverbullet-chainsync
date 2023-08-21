@@ -32,12 +32,27 @@ export type ChainSyncLinkInfo = {
     pos: number;
 }
 
+export async function patchPage(page: string, insert: string, range: Range): Promise<void> {
+    if (page === await editor.getCurrentPage()) {
+        editor.dispatch({
+            changes: {
+                ...range,
+                insert
+            }
+        })
+    } else {
+        const targetDoc = await space.readPage(page);
+        const newTargetDoc = targetDoc.slice(0, range.from) + insert + targetDoc.slice(range.to);
+        await space.writePage(page, newTargetDoc);
+    }
+}
+
 export async function onPageModified(ev: PageModifiedEvent): Promise<void> {
     const pageName = await editor.getCurrentPage();
     const doc = await editor.getText();
     const pageTree = await markdown.parseMarkdown(doc);
     for await(const change of ev.changes) {
-        const taskAtPos = findNodeTypeInRange(pageTree, "Task", change.oldRange);
+        const taskAtPos = findNodeTypeInRange(pageTree, "Task", change.newRange);
         if (taskAtPos) {
             console.log("found task ", taskAtPos)
             let link: ChainSyncLinkInfo | undefined;
@@ -67,21 +82,11 @@ export async function onPageModified(ev: PageModifiedEvent): Promise<void> {
             if (link) {
                 console.log(`chain link to "${link.page}@${link.pos}" from "${pageName}"`);
 
-                if (link.page == pageName) {
-                    console.log("same page, skipping")
-                    continue
-                }
                 const targetDoc = await space.readPage(link.page);
                 const targetParseTree = await markdown.parseMarkdown(targetDoc);
                 const targetNode = findNodeTypeInRange(targetParseTree, "Task", {from: link.pos, to: link.pos + 1});
-                if (targetNode) {
-                    const srcTaskText = renderToText(taskAtPos);
-                    const destTaskText = targetDoc.slice(targetNode.from, targetNode.to);
-                    if (srcTaskText !== destTaskText) {
-                        console.log(`src and dest do not match: "${srcTaskText}" !== "${destTaskText}"`)
-                        const newTargetDoc = targetDoc.slice(0, targetNode.from) + srcTaskText + targetDoc.slice(targetNode.to);
-                        await space.writePage(link.page, newTargetDoc);
-                    }
+                if (targetNode && targetNode.from !== undefined && targetNode.to !== undefined) {
+                    await patchPage(link.page, renderToText(taskAtPos), targetNode as Range)
                 }
             }
             console.log(taskAtPos)
