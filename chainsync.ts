@@ -82,8 +82,17 @@ export async function onPageModified(ev: PageModifiedEvent): Promise<void> {
             if (link) {
                 console.log(`chain link to "${link.page}@${link.pos}" from "${pageName}"`);
 
-                const targetDoc = await space.readPage(link.page);
-                const targetParseTree = await markdown.parseMarkdown(targetDoc);
+                let targetDoc: string;
+                let targetParseTree: ParseTree;
+
+                if (link.page !== pageName) {
+                    targetDoc = await space.readPage(link.page);
+                    targetParseTree = await markdown.parseMarkdown(targetDoc);
+                } else {
+                    targetDoc = doc;
+                    targetParseTree = pageTree;
+                }
+
                 const targetNode = findNodeTypeInRange(targetParseTree, "Task", {from: link.pos, to: link.pos + 1});
                 if (targetNode && targetNode.from !== undefined && targetNode.to !== undefined) {
                     await patchPage(link.page, renderToText(taskAtPos), targetNode as Range)
